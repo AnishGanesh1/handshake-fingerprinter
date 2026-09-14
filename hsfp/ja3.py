@@ -1,14 +1,16 @@
-"""JA3 fingerprint.  [Implemented on Day 3]
+"""JA3 fingerprint.  [Day 3]
 
 JA3 = md5( SSLVersion,Ciphers,Extensions,EllipticCurves,ECPointFormats )
-with values in decimal, joined by '-' inside a field and ',' between fields.
+Values are decimal, joined by '-' inside a field and ',' between fields.
 
 GREASE values MUST be stripped from ciphers/extensions/curves or fingerprints
-for modern browsers will drift. The GREASE set is defined here now because
-both ja3 and ja4 (and the ML features) import it.
+for modern browsers will drift. The GREASE set is defined here because ja4 and
+the ML features import it too.
 """
 
 from __future__ import annotations
+
+import hashlib
 
 # RFC 8701 GREASE values.
 GREASE = {
@@ -23,13 +25,16 @@ def _clean(xs):
 
 
 def ja3_string(ch: dict) -> str:
-    """Build the canonical JA3 string from a parsed ClientHello dict.
-
-    TODO(Day 3): implement using ch fields and _clean().
-    """
-    raise NotImplementedError("ja3_string is implemented on Day 3")
+    """Build the canonical JA3 string from a parsed ClientHello dict."""
+    return ",".join([
+        str(ch["client_version"]),                     # legacy version, e.g. 771
+        "-".join(map(str, _clean(ch["ciphers"]))),
+        "-".join(map(str, _clean(ch["extensions"]))),
+        "-".join(map(str, _clean(ch["groups"]))),
+        "-".join(map(str, ch["ec_fmt"])),
+    ])
 
 
 def ja3_hash(ch: dict) -> str:
-    """MD5 hex digest of ja3_string(ch).  TODO(Day 3)."""
-    raise NotImplementedError("ja3_hash is implemented on Day 3")
+    """MD5 hex digest of ja3_string(ch)."""
+    return hashlib.md5(ja3_string(ch).encode()).hexdigest()
