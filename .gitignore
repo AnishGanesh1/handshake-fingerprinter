@@ -1,0 +1,24 @@
+# virtual env
+.venv/
+venv/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# project data (captures, blocklists, trained models — keep out of git)
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
+*.pcap
+*.pcapng
+*.db
+*.pkl
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
