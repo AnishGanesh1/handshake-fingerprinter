@@ -1,48 +1,43 @@
 #!/usr/bin/env python3
-"""Handshake Fingerprinter — command-line entrypoint.
+"""Handshake Fingerprinter — CLI (Day 7 integration).
 
-Day 1 capability: read a pcap and list every TLS ClientHello it contains.
-As the project grows, the fingerprinting and verdict logic (Days 3-11) plugs
-into the loop marked below.
+Parses each ClientHello, fingerprints it (JA3 + JA4), and prints a verdict by
+looking it up in the known-bad database.
 
-Usage:
-    python cli.py data/benign.pcap
-    python cli.py data/benign.pcap --limit 20
+    python cli.py data/sample.pcap
+    python cli.py data/sample.pcap --limit 20
+
+(The richer color table + JSON output + live sniffing arrive on Day 11 / Day 8.)
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
 
-from hsfp import __version__
-from hsfp.capture import endpoints, record_length, tls_payloads
+from hsfp import __version__, db
+from hsfp.capture import endpoints, tls_payloads
+from hsfp.classify import classify
+from hsfp.parse import parse_client_hello
 
 
-def cmd_scan(args: argparse.Namespace) -> int:
-    count = 0
-    print(f"{'#':>5}  {'source':<21} -> {'destination':<21}  {'SNI/len':<12}")
-    print("-" * 72)
+def cmd_scan(args) -> int:
+    con = db.connect(args.db)
+    print(f"{'#':>5}  {'SNI':<28} {'JA4':<28} {'verdict':<10} source")
+    print("-" * 88)
+    n = mal = 0
     for index, pkt, raw in tls_payloads(args.pcap):
-        src, dst, sport, dport = endpoints(pkt)
-        # --- fingerprinting plugs in here (Day 3+) -------------------------
-        #   ch = parse_client_hello(raw)          # Day 2
-        #   j3 = ja3_hash(ch); j4 = ja4(ch)       # Day 3-4
-        #   verdict = classify(ch, j3, j4)        # Day 5-9
-        # ------------------------------------------------------------------
-        print(
-            f"{index:>5}  {src + ':' + str(sport):<21} -> "
-            f"{dst + ':' + str(dport):<21}  {record_length(raw)} bytes"
-        )
-        count += 1
-        if args.limit and count >= args.limit:
+        ch = parse_client_hello(raw)
+        if not ch:
+            continue
+        row = classify(con, ch)                 # no ML yet (that's Day 9)
+        print(f"{index:>5}  {(row['sni'] or '-'):<28} {row['ja4']:<28} "
+              f"{row['verdict']:<10} {row['source']}")
+        n += 1
+        mal += row["verdict"] == "malicious"
+        if args.limit and n >= args.limit:
             break
-
-    print("-" * 72)
-    print(f"found {count} ClientHello handshake(s)")
-    if count == 0:
-        print("(no TLS ClientHellos — is this an HTTPS capture on tcp/443?)",
-              file=sys.stderr)
+    print("-" * 88)
+    print(f"{n} handshake(s), {mal} malicious")
     return 0
 
 
@@ -50,18 +45,15 @@ def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="hsfp", description="Passive TLS (JA3/JA4) handshake fingerprinter"
     )
-    ap.add_argument("--version", action="version",
-                    version=f"%(prog)s {__version__}")
-    ap.add_argument("pcap", help="path to a .pcap/.pcapng capture file")
-    ap.add_argument("--limit", type=int, default=0,
-                    help="stop after N handshakes (0 = no limit)")
-    ap.set_defaults(func=cmd_scan)
+    ap.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    ap.add_argument("pcap", help="pcap file to scan")
+    ap.add_argument("--db", default="data/fp.db", help="fingerprint database path")
+    ap.add_argument("--limit", type=int, default=0, help="stop after N handshakes")
     return ap
 
 
 def main(argv=None) -> int:
-    args = build_parser().parse_args(argv)
-    return args.func(args)
+    return cmd_scan(build_parser().parse_args(argv))
 
 
 if __name__ == "__main__":
