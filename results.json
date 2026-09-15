@@ -1,0 +1,24 @@
+[
+  {
+    "sni": null,
+    "ja3": "2432bebf06532faf89aae784a9aae4ef",
+    "ja4": "t00i000000_e3b0c44298fc_e3b0c44298fc",
+    "verdict": "benign",
+    "score": 0.0,
+    "source": "-",
+    "index": 0,
+    "src": "192.168.1.10:51514",
+    "dst": "142.250.0.14:443"
+  },
+  {
+    "sni": null,
+    "ja3": "2432bebf06532faf89aae784a9aae4ef",
+    "ja4": "t00i000000_e3b0c44298fc_e3b0c44298fc",
+    "verdict": "benign",
+    "score": 0.0,
+    "source": "-",
+    "index": 1,
+    "src": "192.168.1.10:51516",
+    "dst": "151.101.0.223:443"
+  }
+]
