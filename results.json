@@ -1,24 +1,38 @@
 [
   {
+    "client": "curl",
     "sni": null,
-    "ja3": "2432bebf06532faf89aae784a9aae4ef",
-    "ja4": "t00i000000_e3b0c44298fc_e3b0c44298fc",
+    "ja3": "4314c4ae07ee10b792caeaf57790fa7b",
+    "ja4": "t13i3112h2_e8f1e7e78f70_ce5650b735ce",
     "verdict": "benign",
     "score": 0.0,
-    "source": "-",
-    "index": 0,
-    "src": "192.168.1.10:51514",
-    "dst": "142.250.0.14:443"
+    "source": "-"
   },
   {
+    "client": "wget",
     "sni": null,
-    "ja3": "2432bebf06532faf89aae784a9aae4ef",
-    "ja4": "t00i000000_e3b0c44298fc_e3b0c44298fc",
+    "ja3": "ceae6388daceebc11811eebcebb26df1",
+    "ja4": "t13i751000_479067518aa3_fb8d5ffd48c1",
     "verdict": "benign",
     "score": 0.0,
-    "source": "-",
-    "index": 1,
-    "src": "192.168.1.10:51516",
-    "dst": "151.101.0.223:443"
+    "source": "-"
+  },
+  {
+    "client": "openssl",
+    "sni": null,
+    "ja3": "c216e752cae6f8755fd27f561d031636",
+    "ja4": "t13i310900_e8f1e7e78f70_1f22a2ca17c4",
+    "verdict": "benign",
+    "score": 0.0,
+    "source": "-"
+  },
+  {
+    "client": "python-default",
+    "sni": "example.test",
+    "ja3": "93c7d42c0df602fb91589311534831f5",
+    "ja4": "t13d181100_85036bcba153_d41ae481755e",
+    "verdict": "benign",
+    "score": 0.0,
+    "source": "-"
   }
 ]

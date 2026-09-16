@@ -22,3 +22,7 @@ models/*
 .DS_Store
 .idea/
 .vscode/
+
+# committed demo data (real ClientHellos, reproducible examples)
+!samples/
+!samples/*.pcap

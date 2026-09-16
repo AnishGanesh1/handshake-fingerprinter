@@ -40,25 +40,33 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1        # Windows  (source .venv/bin/activate on Linux/Mac)
 pip install -r requirements.txt
 
-python cli.py data\sample.pcap                 # scan a capture
-python cli.py data\sample.pcap --json out.json # + machine-readable output
+python cli.py samples\demo.pcap                # scan a capture (4 real clients)
+python cli.py samples\demo.pcap --json out.json # + machine-readable output
 python scripts\honeypot.py --port 8443         # passive honeypot
 ```
 
-## Example: the honeypot in action
+## Example: different clients, different fingerprints
 
-Running the honeypot and hitting it with `curl` captures a real fingerprint:
+Four different TLS clients connecting to the honeypot — each produces a distinct
+JA4, captured live (`samples/honeypot-sample.tsv`):
+
+| client | JA4 | SNI |
+|---|---|---|
+| curl | `t13i3112h2_e8f1e7e78f70_ce5650b735ce` | – |
+| wget | `t13i751000_479067518aa3_fb8d5ffd48c1` | – |
+| openssl | `t13i310900_e8f1e7e78f70_1f22a2ca17c4` | – |
+| python | `t13d181100_85036bcba153_d41ae481755e` | example.test |
+
+Reading a JA4 like `t13i3112h2`: **T**CP, TLS 1.**3**, **i** = *no SNI*, 31 ciphers,
+12 extensions, ALPN `h2`. Two things stand out immediately: every client has a
+different cipher/extension hash, and the command-line tools omit SNI (`i`) while the
+Python client sends it (`d` = `t13d…`). That separability — telling software apart by
+its handshake alone, without decryption — is the entire premise. `samples/demo.pcap`
+contains these four real ClientHellos so anyone can reproduce it:
 
 ```
-timestamp                          ip          JA4                                    JA3           SNI
-2026-09-15T08:27:29.286333+00:00   127.0.0.1   t13i2011h1_2b729b4bf6f3_36bf25f296df   4bb46cf214…   -
+python cli.py samples\demo.pcap
 ```
-
-Reading that JA4 (`t13i2011h1`): **T**CP, TLS 1.**3**, **i** = *no SNI*, 20 ciphers,
-11 extensions, ALPN `h1` (http/1.1). The absent SNI (`i`) is a useful signal on its
-own — command-line tools and scanners frequently omit it, where real browsers
-always send the destination hostname. A browser hitting the same honeypot produces
-a visibly different fingerprint; that separability is the entire premise.
 
 ## How it works (the interesting parts)
 

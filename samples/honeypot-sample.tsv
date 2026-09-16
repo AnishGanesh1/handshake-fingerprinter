@@ -1,0 +1,6 @@
+# real ClientHello fingerprints captured by scripts/honeypot.py
+# client	JA4	JA3	SNI
+curl	t13i3112h2_e8f1e7e78f70_ce5650b735ce	4314c4ae07ee10b792caeaf57790fa7b	-
+wget	t13i751000_479067518aa3_fb8d5ffd48c1	ceae6388daceebc11811eebcebb26df1	-
+openssl	t13i310900_e8f1e7e78f70_1f22a2ca17c4	c216e752cae6f8755fd27f561d031636	-
+python-default	t13d181100_85036bcba153_d41ae481755e	93c7d42c0df602fb91589311534831f5	example.test
