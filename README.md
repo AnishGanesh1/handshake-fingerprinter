@@ -2,81 +2,140 @@
 
 **Passive TLS (JA3/JA4) malware command-and-control detection — no decryption required.**
 
-Encrypted traffic hides the *payload*, not the *handshake*. This tool fingerprints
-the TLS `ClientHello` that every HTTPS connection begins with, and flags clients
-whose fingerprints match known — or statistically suspicious — malware C2 tooling.
-
-![status](https://img.shields.io/badge/status-day%201%20scaffold-blue)
+![ci](https://github.com/AnishGanesh1/handshake-fingerprinter/actions/workflows/ci.yml/badge.svg)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-<!-- add once CI is green (Day 12):
-![ci](https://github.com/<you>/handshake-fp/actions/workflows/ci.yml/badge.svg) -->
+![license](https://img.shields.io/badge/license-MIT-green)
+
+Encrypted traffic hides the *payload*, not the *handshake*. Every HTTPS connection
+opens with an unencrypted `ClientHello` that reveals exactly which software is
+speaking — its TLS versions, cipher suites, extensions, and curves. This tool
+fingerprints that handshake (JA3 and JA4) and flags clients whose fingerprints
+match known — or statistically suspicious — malware C2 tooling, **without
+decrypting a single byte**.
 
 ---
 
+## What it does
+
+```
+  capture  ->  parse  ->  fingerprint  ->  +-- DB lookup (known C2) --+  ->  verdict
+ pcap/live   ClientHello    JA3 / JA4        +-- ML score (unknown fp) -+       report
+```
+
+- **Parses** TLS ClientHellos by hand, straight off the wire (no TLS library).
+- **Fingerprints** each one with both **JA3** (MD5) and **JA4** (FoxIO's modern scheme).
+- **Classifies** it — a lookup against the abuse.ch SSLBL known-bad database, plus
+  a RandomForest that scores *unknown* fingerprints on malware-likelihood.
+- **Reports** a per-flow verdict (`malicious` / `suspicious` / `benign`) as a
+  color-coded table and machine-readable JSON.
+- **Collects its own data** via a passive TLS honeypot that fingerprints every
+  client that connects — no certificate needed.
+
 ## Quickstart
 
-```bash
-git clone <your-fork-url> handshake-fp && cd handshake-fp
-python -m venv .venv && source .venv/bin/activate
+```powershell
+git clone https://github.com/AnishGanesh1/handshake-fingerprinter.git
+cd handshake-fingerprinter
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1        # Windows  (source .venv/bin/activate on Linux/Mac)
 pip install -r requirements.txt
 
-# capture a short benign baseline of your OWN traffic
-sudo ./scripts/capture_baseline.sh any 120
-
-# list every TLS ClientHello in the capture
-python cli.py data/benign.pcap
+python cli.py data\sample.pcap                 # scan a capture
+python cli.py data\sample.pcap --json out.json # + machine-readable output
+python scripts\honeypot.py --port 8443         # passive honeypot
 ```
 
-Example output (Day 1):
+## Example: the honeypot in action
+
+Running the honeypot and hitting it with `curl` captures a real fingerprint:
 
 ```
-    #  source                -> destination            SNI/len
-------------------------------------------------------------------------
-    3  192.168.1.10:51514    -> 142.250.0.14:443       517 bytes
-    9  192.168.1.10:51516    -> 151.101.0.223:443      508 bytes
-------------------------------------------------------------------------
-found 2 ClientHello handshake(s)
+timestamp                          ip          JA4                                    JA3           SNI
+2026-09-15T08:27:29.286333+00:00   127.0.0.1   t13i2011h1_2b729b4bf6f3_36bf25f296df   4bb46cf214…   -
 ```
 
-## What works today
+Reading that JA4 (`t13i2011h1`): **T**CP, TLS 1.**3**, **i** = *no SNI*, 20 ciphers,
+11 extensions, ALPN `h1` (http/1.1). The absent SNI (`i`) is a useful signal on its
+own — command-line tools and scanners frequently omit it, where real browsers
+always send the destination hostname. A browser hitting the same honeypot produces
+a visibly different fingerprint; that separability is the entire premise.
 
-This is the **Day 1 scaffold**. Capture and handshake detection are implemented
-and tested; fingerprinting, the known-bad database, the ML classifier, and the
-reporting layer are stubbed with clear signatures and land over the 14-day plan.
+## How it works (the interesting parts)
 
-| Module | Purpose | Status |
-|---|---|---|
-| `hsfp/capture.py` | pcap iteration + live sniff | ✅ Day 1 |
-| `hsfp/parse.py` | ClientHello byte parser | ⬜ Day 2 |
-| `hsfp/ja3.py` | JA3 string + MD5 | ⬜ Day 3 |
-| `hsfp/ja4.py` | JA4 `a_b_c` fingerprint | ⬜ Day 4 |
-| `hsfp/db.py` | sqlite fingerprint store | ⬜ Day 5 |
-| `hsfp/features.py` / `model.py` | ML on unknown fingerprints | ⬜ Day 9 |
-| `hsfp/report.py` | JSON + terminal report | ⬜ Day 11 |
+- **Hand-rolled ClientHello parser** (`hsfp/parse.py`) walks the record →
+  handshake → extensions structure and pulls ciphers, extensions, curves,
+  signature algorithms, ALPN, SNI, and `supported_versions`. It never raises on
+  malformed input — one bad packet is skipped, not fatal.
+- **GREASE stripping** (`hsfp/ja3.py`) — browsers inject random reserved values
+  (RFC 8701) into the handshake; without filtering them, every fingerprint drifts.
+- **JA4** (`hsfp/ja4.py`) reads the true TLS version from the
+  `supported_versions` extension (TLS 1.3 masquerades as 1.2 on the wire) and
+  sorts its inputs so trivial reordering can't evade it.
 
-See [`PROJECT_OVERVIEW.md`](PROJECT_OVERVIEW.md) for the full concept, architecture,
-and day-by-day roadmap.
+## Project layout
 
-## Development
+| Module | Purpose |
+|---|---|
+| `hsfp/capture.py` | pcap iteration + live sniffing with TCP-segment reassembly |
+| `hsfp/parse.py` | ClientHello byte parser |
+| `hsfp/ja3.py` / `ja4.py` | fingerprint algorithms |
+| `hsfp/db.py` | sqlite known-bad fingerprint store (SSLBL loader) |
+| `hsfp/features.py` / `model.py` | ML feature vectors + RandomForest |
+| `hsfp/classify.py` | verdict logic |
+| `hsfp/report.py` | color table + JSON output |
+| `scripts/honeypot.py` | passive TLS honeypot |
+| `scripts/train.py` | build dataset from labelled pcaps + train |
 
-```bash
+## Testing
+
+```powershell
 pip install pytest
-pytest -q          # Day 1 tests: handshake detection
+python -m pytest -q      # 26 tests
 ```
+
+Fingerprints are pinned by regression tests; the parser is fuzzed with truncated
+and malformed input to prove it degrades gracefully. CI runs the suite on every push.
+
+## Status & roadmap
+
+- [x] ClientHello parsing, JA3, JA4 (validated by tests)
+- [x] known-bad DB lookup (abuse.ch SSLBL)
+- [x] live capture + passive honeypot (real fingerprints captured)
+- [x] color report + JSON output, CLI, CI
+- [x] ML classifier implemented (`features.py` / `model.py`)
+- [ ] train the classifier on a labelled corpus (benign browsing vs. honeypot /
+      malware captures) and publish precision/recall
+- [ ] JA4+ suite (JA4S server, JA4H HTTP), Zeek/Suricata alert export
+
+## What I learned / hardest parts
+
+- **GREASE** — the first fingerprints I generated for Chrome never matched anything
+  because I wasn't stripping the random RFC 8701 values it injects. Filtering GREASE
+  from ciphers, extensions, and curves was the fix.
+- **TLS 1.3 hides its version** — the record and legacy fields still say "1.2" for
+  compatibility; the real version lives inside the `supported_versions` extension,
+  and JA3 and JA4 treat this deliberately differently.
+- **JA4 spec fidelity** — sorted lists, ALPN edge cases, and the version rule all
+  have to be exactly right, so I pinned the output with regression tests and
+  cross-checked the structure field by field.
+- **A codec bug worth remembering** — decoding SNI with Python's `idna` codec threw
+  `UnicodeError` on perfectly valid hostnames because that codec ignores the error
+  handler. SNI is ASCII on the wire, so UTF-8 decoding is the correct, robust choice.
 
 ## Ethics & legal
 
-Only capture traffic on machines and networks **you own or are explicitly
-authorized to monitor** — your own host, your own honeypot, or published research
-datasets. Passive fingerprinting of third-party networks may be illegal in your
-jurisdiction. This project is for defensive research and education.
+Only capture traffic on machines and networks **you own or are explicitly authorized
+to monitor** — your own host, your own honeypot, or published research datasets. This
+tool reads only the unencrypted handshake metadata every client broadcasts by design;
+it never decrypts traffic. For defensive research and education.
 
 ## References
 
 - FoxIO — JA4+ TLS fingerprinting specification
 - abuse.ch SSLBL — JA3 fingerprint blocklist
 - Stratosphere IPS / malware-traffic-analysis.net — malware pcap datasets
+- RFC 8446 (TLS 1.3), RFC 8701 (GREASE)
 
 ## License
 
-MIT (add a `LICENSE` file before publishing).
+MIT — see [LICENSE](LICENSE).
