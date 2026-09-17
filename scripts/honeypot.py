@@ -16,6 +16,9 @@ Only run this on a host you control.
 
 from __future__ import annotations
 
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import argparse
 import socket
 from datetime import datetime, timezone

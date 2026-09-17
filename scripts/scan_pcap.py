@@ -9,6 +9,9 @@ to get your first concrete "N/M flows matched known C2" number for the README.
 
 from __future__ import annotations
 
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import sys
 
 from hsfp import db
