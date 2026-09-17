@@ -68,6 +68,30 @@ contains these four real ClientHellos so anyone can reproduce it:
 python cli.py samples\demo.pcap
 ```
 
+## ML classifier (proof-of-concept)
+
+Beyond the known-bad database, a RandomForest scores *unknown* fingerprints on how
+automated (non-browser) they look. Trained on a small, self-collected dataset:
+
+| class | samples | distinct client fingerprints |
+|---|---|---|
+| browser (benign) | 284 | 2 |
+| automated / tools (curl, wget, openssl, python) | 106 | 28 |
+
+On a random train/test split the model scores ~1.00 precision/recall — but that number
+is **deliberately reported as optimistic**: browser and tool fingerprints don't overlap,
+and identical ClientHellos appear in both train and test, so the model is largely
+memorizing. The honest takeaways:
+
+- The end-to-end ML pipeline works: `featurize()` -> RandomForest -> per-flow scoring in the CLI (`--model`).
+- The dataset is too small and low-diversity (only ~2 real browser fingerprints) to be a rigorous benchmark.
+- `scripts/train.py` therefore **also reports a fingerprint-grouped split**, where test
+  fingerprints are unseen in training — the fair way to measure generalization, and the
+  reason not to trust the headline 1.00.
+
+*Future work: capture diverse real browsing (many browsers/sites via Npcap) and real
+malware C2 to turn this into a genuine benchmark.*
+
 ## How it works (the interesting parts)
 
 - **Hand-rolled ClientHello parser** (`hsfp/parse.py`) walks the record →
@@ -111,8 +135,8 @@ and malformed input to prove it degrades gracefully. CI runs the suite on every 
 - [x] live capture + passive honeypot (real fingerprints captured)
 - [x] color report + JSON output, CLI, CI
 - [x] ML classifier implemented (`features.py` / `model.py`)
-- [ ] train the classifier on a labelled corpus (benign browsing vs. honeypot /
-      malware captures) and publish precision/recall
+- [x] trained the classifier on a small self-collected dataset (see "ML classifier" above);
+      larger, more diverse data is future work
 - [ ] JA4+ suite (JA4S server, JA4H HTTP), Zeek/Suricata alert export
 
 ## What I learned / hardest parts
